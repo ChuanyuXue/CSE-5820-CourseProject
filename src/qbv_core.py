@@ -35,6 +35,10 @@ class flow:
 
     def __init__(self, id: int, p: time_duration, l: int, pcp: int,
                  frames: Tuple[frame], route: Tuple[link]) -> None:
+        '''
+        length: length in byte
+        '''
+
         self.id = id
         self.pcp = pcp
         self.period = p
@@ -167,9 +171,16 @@ class egress:
 
     def transmit(self, i: int):
         frame = self.queues[i].get()
-        for a, b in _flows[frame.flow_id].route:
-            if self.id == a:
-                _devices[b].recv(frame)
+        _devices[self.neighbor].recv(frame)
+        ## The only where for waiting
+        self.clock.wait(
+            time_duration(_flows[frame.flow_id].length / self.speed))
+
+    def recv(self, frame: frame):
+        pcp = _flows[frame.flow_id].pcp
+        prio = self.pcp_to_prio[pcp]
+        tc = self.prio_to_tc[prio]
+        self.queues[tc].put(frame)
 
 
 # class ingress:
@@ -188,5 +199,15 @@ class device:
         self.id = id
         self.egress_ports = egress_ports
 
+    def _switching_fabric(self, frame: frame) -> int:
+        for a, b in _flows[frame.flow_id].route:
+            if self.id == a:
+                for eg in self.egress_ports:
+                    if eg.neighbor == b:
+                        eg.recv(frame)
+
     def recv(self, frame: frame) -> None:
-        pass
+        self._switching_fabric(frame)
+
+    def send(self, frame: frame) -> None:
+        self.recv(frame)
