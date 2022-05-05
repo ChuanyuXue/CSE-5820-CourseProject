@@ -1,4 +1,5 @@
 from src.qbv_core import *
+from src.environment import *
 import src.qbv_core as qbv
 
 TIME_GURANULARITY = 100
@@ -34,51 +35,55 @@ TIME_GURANULARITY = 100
 #     print(_match_time(1200))
 
 ## -------------- Test for one flow one switch -------------------
-f_0 = frame(id=0, flow_id=0, o=Time_point(0, 0))
+# f_0 = frame(id=0, flow_id=0, o=Time(0, 0))
 
-s_0 = Flow(id=0,
-           p=Time_duration(1 / 12500 * 1e9),
-           l=100,
-           pcp=0,
-           frames=(f_0),
-           route=([Link(0, 1), Link(1, 2)]))
+# s_0 = Flow(id=0,
+#            p=Time(1 / 12500 * 1e9),
+#            l=100,
+#            pcp=0,
+#            frames=(f_0),
+#            route=([Link(0, 1), Link(1, 2)]))
 
-### Initialize GCL
+# ### Initialize GCL
 
-gcl_0 = GCL(
-    t=[Time_point(0, 500), Time_point(0, 1300)],
-    p=s_0.period,
-    e=[
-        [True],
-        [False],
-    ],
-)
+# gcl_0 = GCL(
+#     t=[Time(0, 500), Time(0, 1300)],
+#     p=s_0.period,
+#     e=[
+#         [True],
+#         [False],
+#     ],
+# )
 
-#### Create 1 egress queue with speed 1000 mbits = [10^9 bit / second = 1/8 byte / nanosecond]
+# #### Create 1 egress queue with speed 1000 mbits = [10^9 bit / second = 1/8 byte / nanosecond]
 
-sw1p0 = Egress(
-    id=0,
-    speed=1 / 8,
-    gcl=gcl_0,
-    queue_nums=1,
-    neighbor=1,
-    clock=Clock(Time_point(0, 0)),
-    queues=[Queue()],
-    pcp_to_prio={0: 0},
-    prio_to_tc={0: 0},
-)
+# sw1p0 = Egress(
+#     id=0,
+#     speed=1 / 8,
+#     gcl=gcl_0,
+#     queue_nums=1,
+#     neighbor=1,
+#     clock=Clock(Time(0, 0)),
+#     queues=[Queue()],
+#     pcp_to_prio={0: 0},
+#     prio_to_tc={0: 0},
+# )
 
-### Create device switch1
-switch_1 = Device(0, egress_ports=[sw1p0])
+# ### Create device switch1
+# switch_1 = Device(0, egress_ports=[sw1p0])
 
-### Register
-qbv._flows = []
-qbv._devices = []
-qbv._flows.append(s_0)
-qbv._devices.append(switch_1)
+# ### Register
+# qbv._flows = []
+# qbv._devices = []
+# qbv._flows.append(s_0)
+# qbv._devices.append(switch_1)
 
-### Test for one receive data
-switch_1.recv(f_0)
-for i in range(100):
-    switch_1.run(Time_duration(TIME_GURANULARITY))
-    print(switch_1.egress_ports[0].clock.current_time)
+# ### Test for one receive data
+# switch_1.recv(f_0)
+# for i in range(100):
+#     switch_1.run(Time(TIME_GURANULARITY))
+#     print(switch_1.egress_ports[0].clock.current_time)
+
+## ------------ TEST FOR ENVIRONMENT
+env = Environment(1000)
+env.make()

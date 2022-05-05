@@ -1,4 +1,4 @@
-## Hardcode the configuration file
+import math
 from src import qbv_core
 from src.qbv_core import *
 import json
@@ -7,29 +7,35 @@ ENV_PATH = "configs/env.json"
 NETWORK_PATH = "configs/network.json"
 TRAFFIC_PATH = "configs/traffic.json"
 
-f_0 = frame(id=0, flow_id=0, o=Time_point(0, 0))
-
-# gcl_0 = GCL(
-#     t=[Time_point(0, 500), Time_point(0, 1300)],
-#     p=s_0.period,
-#     e=[
-#         [True],
-#         [False],
-#     ],
-# )
 
 def load_gcl(path: str) -> GCL:
-    _t = []
-    _e = []
-    
+    with open(path) as f:
+        _t = []
+        _e = []
+        _time = Time(0, 0)
+        for line in f.readlines():
+            _, t, s = line.split()
+            _e.append([True if x == 1 else False for x in bin(eval(s))[2:]])
+            _t.append(_time)
+            _time += Time(int(t))
+        _p = _time
+
+    return GCL(
+        t=_t,
+        e=_e,
+        p=_p,
+    )
 
 
-class env:
+class Environment:
 
-    def __init__(self, ) -> None:
-        pass
+    def __init__(self, t: Time) -> None:
+        self.time_granularity = t
+        self.LCM = None
 
-    def make(self, ) -> Tuple[List[Flow], List[Device]]:
+        self.clock = Clock(Time(0, 0))
+
+    def make(self, ) -> None:
         ## Create flows
         '''
             {
@@ -55,51 +61,64 @@ class env:
             _route = []
             for i, dev in enumerate(properties['route'][:-1]):
                 _route.append(Link(dev, properties['route'][i + 1]))
-            _route = Tuple(_route)
+            _route = tuple(_route)
 
             _flow = Flow(id=properties["id"],
-                         p=Time_duration(properties["period"]),
+                         p=Time(properties["period"]),
                          l=properties['length'],
                          pcp=properties['pcp'],
                          route=_route)
 
             qbv_core._flows.append(_flow)
+        self.LCM = Time(math.lcm(*[int(x.period) for x in qbv_core._flows]))
 
         with open(NETWORK_PATH) as f:
             network_conf = json.load(f)
 
         for switch_name, properties in network_conf.items():
-            dev_id = properties['id']
-            dev_type = properties['type']
+            _dev_id = properties['id']
+            _dev_type = properties['type']
+            _dev_eg = []
             for i in range(1, 5):
                 if "p%d" % i in properties:
                     _prop = properties["p%d" % i]
-                    _gcl = GCL(
-                        t=[Time_point(0, 500), Time_point(0, 1300)],
-                        p=s_0.period,
-                        e=[
-                            [True],
-                            [False],
-                        ],
-                    )
-
-
 
                     _eg = Egress(
                         id=i,
                         speed=_prop['speed'],
+                        gcl=load_gcl(_prop['gcl']),
                         queue_nums=_prop['n_queues'],
                         neighbor=_prop['neighbor'],
-                        clock=Clock(Time_point(0, 0)),
+                        clock=Clock(Time(0, 0)),
                         queues=[Queue() for _ in range(_prop['n_queues'])],
                         ## Only supports one-one mapping now
                         pcp_to_prio={k: k
                                      for k in range(_prop['n_queues'])},
                         prio_to_tc={k: k
                                     for k in range(_prop['n_queues'])})
-        
 
-#### Create 1 egress queue with speed 1000 mbits = [10^9 bit / second = 1/8 byte / nanosecond]
+                    _dev_eg.append(_eg)
+            _sw = Device(_dev_id, _dev_type, _dev_eg)
+            qbv_core._devices.append(_sw)
 
-### Create device switch1
-switch_1 = Device(0, egress_ports=[sw1p0])
+    def run(self):
+        counter = {}
+
+        for flow in qbv_core._flows:
+            if self.clock.current_time / flow.period == 0:
+                counter.setdefault(flow.id, 0)
+                if counter[flow.id] >= self.LCM / flow.period:
+                    counter[flow.id] = 0
+
+                ins = Frame(id=counter[flow.id],
+                            flow_id=flow.id,
+                            o=flow.period * counter[flow.id])
+                counter[flow.id] += 1
+                for i, v in enumerate(qbv_core._devices):
+                    if v.id == flow.route[0][0]:
+                        qbv_core[i].recv(ins)
+
+        for dev in qbv_core._devices:
+            dev.run(self.time_granularity)
+
+        self.clock.increase(self.time_granularity)

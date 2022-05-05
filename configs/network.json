@@ -6,7 +6,7 @@
             "neighbor": 1,
             "n_queues": 1,
             "speed": 0.125,
-            "gcl": "all_open.cfg"
+            "gcl": "configs/all_open.cfg"
         }
     },
     "sw1": {
@@ -16,7 +16,7 @@
             "neighbor": 2,
             "n_queues": 1,
             "speed": 0.125,
-            "gcl": "all_open.cfg"
+            "gcl": "configs/all_open.cfg"
         }
     },
     "sw2": {

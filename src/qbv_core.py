@@ -1,7 +1,10 @@
 from distutils.log import error
 from time import time
 from typing import *
-from src.utils import Time_duration, Time_point, Clock
+from src.utils import Time, Clock
+
+_devices = []
+_flows = []
 
 
 class Link:
@@ -26,9 +29,9 @@ class Link:
             return error("Index out of range")
 
 
-class frame:
+class Frame:
 
-    def __init__(self, id: int, flow_id: int, o: Time_point) -> None:
+    def __init__(self, id: int, flow_id: int, o: Time) -> None:
         self.id = id
         self.release_t = o
         self.flow_id = flow_id
@@ -36,7 +39,7 @@ class frame:
 
 class Flow:
 
-    def __init__(self, id: int, p: Time_duration, l: int, pcp: int,
+    def __init__(self, id: int, p: Time, l: int, pcp: int,
                  route: Tuple[Link]) -> None:
         '''
         length: length in byte
@@ -63,25 +66,24 @@ class Queue:
     def __len__(self, ) -> int:
         return len(self._data)
 
-    def put(self, x: frame) -> None:
+    def put(self, x: Frame) -> None:
         if len(self._data) > self.length:
             print("[!] Queue overflow")
         self._data.append(x)
 
-    def get(self, ) -> frame:
+    def get(self, ) -> Frame:
         return self._data.pop(0)
 
 
 class GCL:
 
-    def __init__(self, t: List[Time_point], p: Time_duration,
-                 e: List[List[bool]]) -> None:
+    def __init__(self, t: List[Time], p: Time, e: List[List[bool]]) -> None:
         self.gate_time = t
         self.gate_event = e
         self.period = p
         self.length = len(self.gate_time)
 
-        self._max_time = Time_point(0, 0) + self.period
+        self._max_time = Time(0, 0) + self.period
 
         ## Close time of gate i at t
         # self._close_time_map = {}
@@ -89,8 +91,7 @@ class GCL:
         #     for k, v in self.gate_event[i]:
         #         pass
 
-    def get_current_status(self,
-                           t: Time_point) -> Tuple[List[bool], Time_duration]:
+    def get_current_status(self, t: Time) -> Tuple[List[bool], Time]:
         start = self._match_time(t=t)
         if start + 1 < self.length:
             return self.gate_event[start], self.gate_time[start + 1] - t
@@ -98,10 +99,15 @@ class GCL:
             return self.gate_event[
                 start], self._max_time - t + self.gate_time[0]
 
-    def _match_time(self, t: Time_point) -> int:
+    def _match_time(self, t: Time) -> int:
         '''
         Use binary search to quickly find the posistion of GCL
         '''
+
+        ## Find time in GCL period
+        while t > self.period:
+            t -= self.period
+
         left = 0
         right = self.length - 1
         if t < self.gate_time[left] or t > self.gate_time[right]:
@@ -150,7 +156,7 @@ class Egress:
         ## (reg_time, frame)
         self._trans_rejister = []
 
-    def run(self, t: Time_duration) -> int:
+    def run(self, t: Time) -> int:
         '''
         
         Core part of Qbv: Check the aviablity of queue pop based on GCL
@@ -168,7 +174,7 @@ class Egress:
         for i, v in enumerate(status):
             if v and not len(self.queues[i]):
                 status[i] = False
-            if v and len(self.queues[i]) and left_time < Time_duration(
+            if v and len(self.queues[i]) and left_time < Time(
                     _flows[self.queues[i][0].flow_id].length / self.speed):
                 status[i] = False
 
@@ -188,8 +194,8 @@ class Egress:
 
     def transmit(self, i: int):
         global _devices, _flows
-        _trans_duration = Time_duration(
-            _flows[self.queues[i][0].flow_id].length / self.speed)
+        _trans_duration = Time(_flows[self.queues[i][0].flow_id].length /
+                               self.speed)
 
         self._trans_rejister.append((
             _trans_duration,
@@ -203,7 +209,7 @@ class Egress:
             if t >= self.clock.current_time:
                 _devices[self.neighbor].recv(frame)
 
-    def recv(self, frame: frame):
+    def recv(self, frame: Frame):
         global _flows
         pcp = _flows[frame.flow_id].pcp
         prio = self.pcp_to_prio[pcp]
@@ -229,7 +235,7 @@ class Device:
         self.dev_type = dev_type
         self.egress_ports = egress_ports
 
-    def _switching_fabric(self, frame: frame) -> int:
+    def _switching_fabric(self, frame: Frame) -> int:
         global _flows
         for x in _flows[frame.flow_id].route:
             a, b = x[0], x[1]
@@ -238,9 +244,9 @@ class Device:
                     if eg.neighbor == b:
                         eg.recv(frame)
 
-    def run(self, t: Time_duration) -> None:
+    def run(self, t: Time) -> None:
         for i in self.egress_ports:
             i.run(t)
 
-    def recv(self, frame: frame) -> None:
+    def recv(self, frame: Frame) -> None:
         self._switching_fabric(frame)
