@@ -1,18 +1,21 @@
 from distutils.log import error
 from time import time
 from typing import *
-
-from src.utils import time_duration, time_point, clock
-
-_devices = []
-_flows = []
+from src.utils import Time_duration, Time_point, Clock
 
 
-class link:
+class Link:
 
     def __init__(self, x: int, y: int) -> None:
         self.ingress_id = x
         self.egress_id = y
+
+    def __len__(self, ) -> int:
+        return 2
+
+    def __iter__(self, ) -> int:
+        yield self.ingress_id
+        yield self.egress_id
 
     def __getitem__(self, x: int) -> int:
         if x == 0:
@@ -25,16 +28,16 @@ class link:
 
 class frame:
 
-    def __init__(self, id: int, flow_id: int, o: time_point) -> None:
+    def __init__(self, id: int, flow_id: int, o: Time_point) -> None:
         self.id = id
         self.release_t = o
         self.flow_id = flow_id
 
 
-class flow:
+class Flow:
 
-    def __init__(self, id: int, p: time_duration, l: int, pcp: int,
-                 frames: Tuple[frame], route: Tuple[link]) -> None:
+    def __init__(self, id: int, p: Time_duration, l: int, pcp: int,
+                 route: Tuple[Link]) -> None:
         '''
         length: length in byte
         '''
@@ -44,11 +47,11 @@ class flow:
         self.period = p
         self.length = l
 
-        self.frames = frames
+        # self.frames = frames
         self.route = route
 
 
-class queue:
+class Queue:
 
     def __init__(self, length: int = 32) -> None:
         self._data = []
@@ -57,41 +60,45 @@ class queue:
     def __getitem__(self, key: int) -> int:
         return self._data[key]
 
+    def __len__(self, ) -> int:
+        return len(self._data)
+
     def put(self, x: frame) -> None:
+        if len(self._data) > self.length:
+            print("[!] Queue overflow")
         self._data.append(x)
 
     def get(self, ) -> frame:
         return self._data.pop(0)
 
 
-class gcl:
+class GCL:
 
-    def __init__(self, t: List[time_point], p: time_duration,
+    def __init__(self, t: List[Time_point], p: Time_duration,
                  e: List[List[bool]]) -> None:
         self.gate_time = t
         self.gate_event = e
         self.period = p
         self.length = len(self.gate_time)
 
-        self._max_time = t(0, 0) + self.period
+        self._max_time = Time_point(0, 0) + self.period
 
         ## Close time of gate i at t
-        self._close_time_map = {}
-        for i, t in range(self.gate_time):
-            for k, v in self.gate_event[i]:
-                pass
+        # self._close_time_map = {}
+        # for i, t in range(len(self.gate_time)):
+        #     for k, v in self.gate_event[i]:
+        #         pass
 
     def get_current_status(self,
-                           t: time_point) -> Tuple[List[bool], time_duration]:
-        start = self._match_time(t)
+                           t: Time_point) -> Tuple[List[bool], Time_duration]:
+        start = self._match_time(t=t)
         if start + 1 < self.length:
             return self.gate_event[start], self.gate_time[start + 1] - t
         else:
             return self.gate_event[
                 start], self._max_time - t + self.gate_time[0]
 
-    @staticmethod
-    def _match_time(self, t: time_point) -> int:
+    def _match_time(self, t: Time_point) -> int:
         '''
         Use binary search to quickly find the posistion of GCL
         '''
@@ -110,12 +117,12 @@ class gcl:
                 left = median
 
 
-class egress:
+class Egress:
 
-    def __init__(self, id: int, speed: float, gcl: gcl, queue_nums: int,
-                 neighbor: int, clock: clock, queues: List[queue],
-                 pcp_to_prio: Dict[int:int],
-                 prio_to_tc: Dict[int:int]) -> None:
+    def __init__(self, id: int, speed: float, gcl: GCL, queue_nums: int,
+                 neighbor: int, clock: Clock, queues: List[Queue],
+                 pcp_to_prio: Dict[int, int], prio_to_tc: Dict[int,
+                                                               int]) -> None:
         '''
 
         speed: bytes per-nanosecond
@@ -123,7 +130,6 @@ class egress:
         queues: ordered list of egress queues
 
         '''
-        self.id = id
         self.gcl = gcl
         self.speed = speed
         self.queue_nums = queue_nums if queue_nums else 8
@@ -133,14 +139,18 @@ class egress:
         self.pcp_to_prio = pcp_to_prio
         self.prio_to_tc = prio_to_tc
         self.tc_to_prio = {}
-        for key, value in self.tc_to_prio.items():
+        for key, value in self.prio_to_tc.items():
             if value in self.tc_to_prio:
                 print(
                     "[!] Warning: Priority to Traffic class is not one-to-one mapping!"
                 )
             self.tc_to_prio[value] = key
 
-    def check_aviable(self, ) -> int:
+        ## TODO: Make this as a HEAP
+        ## (reg_time, frame)
+        self._trans_rejister = []
+
+    def run(self, t: Time_duration) -> int:
         '''
         
         Core part of Qbv: Check the aviablity of queue pop based on GCL
@@ -150,33 +160,51 @@ class egress:
         ## if current port is not aviable (transmitting data)
         if not self.clock.is_aviable:
             return -1
-        status, left_time = self.gcl.get_current_status(
-            self.clock.current_time)
 
-        ## Check if the left time is still enough for frame
-        for i, v in status:
-            if v and left_time < self.queues[i][0].length / self.speed:
+        status, left_time = self.gcl.get_current_status(
+            t=self.clock.current_time)
+
+        ## Check if the left time is still enough for frame [Look ahead]
+        for i, v in enumerate(status):
+            if v and not len(self.queues[i]):
+                status[i] = False
+            if v and len(self.queues[i]) and left_time < Time_duration(
+                    _flows[self.queues[i][0].flow_id].length / self.speed):
                 status[i] = False
 
         ## Compete by priority
         _max_prio = -1
         _max_index = None
-        for i, v in status:
-            if self.tc_to_prio[i] > _max_prio:
+        for i, v in enumerate(status):
+            if v and self.tc_to_prio[i] > _max_prio:
                 _max_index = i
                 _max_prio = self.tc_to_prio
 
-        if _max_index >= 0:
+        if _max_index != None:
             self.transmit(_max_index)
 
+        ## Increase time
+        self.clock.increase(t)
+
     def transmit(self, i: int):
-        frame = self.queues[i].get()
-        _devices[self.neighbor].recv(frame)
-        ## The only where for waiting
-        self.clock.wait(
-            time_duration(_flows[frame.flow_id].length / self.speed))
+        global _devices, _flows
+        _trans_duration = Time_duration(
+            _flows[self.queues[i][0].flow_id].length / self.speed)
+
+        self._trans_rejister.append((
+            _trans_duration,
+            self.queues[i].get(),
+        ))
+
+        ## Only waitting here for transmition
+        self.clock.wait(_trans_duration)
+
+        for t, frame in self._trans_rejister:
+            if t >= self.clock.current_time:
+                _devices[self.neighbor].recv(frame)
 
     def recv(self, frame: frame):
+        global _flows
         pcp = _flows[frame.flow_id].pcp
         prio = self.pcp_to_prio[pcp]
         tc = self.prio_to_tc[prio]
@@ -193,21 +221,26 @@ class egress:
 #         pass
 
 
-class device:
+class Device:
 
-    def __init__(self, id: int, egress_ports: List[egress]) -> None:
+    def __init__(self, id: int, dev_type: int,
+                 egress_ports: List[Egress]) -> None:
         self.id = id
+        self.dev_type = dev_type
         self.egress_ports = egress_ports
 
     def _switching_fabric(self, frame: frame) -> int:
-        for a, b in _flows[frame.flow_id].route:
+        global _flows
+        for x in _flows[frame.flow_id].route:
+            a, b = x[0], x[1]
             if self.id == a:
                 for eg in self.egress_ports:
                     if eg.neighbor == b:
                         eg.recv(frame)
 
+    def run(self, t: Time_duration) -> None:
+        for i in self.egress_ports:
+            i.run(t)
+
     def recv(self, frame: frame) -> None:
         self._switching_fabric(frame)
-
-    def send(self, frame: frame) -> None:
-        self.recv(frame)

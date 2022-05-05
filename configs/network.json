@@ -1,0 +1,26 @@
+{
+    "sw0": {
+        "id": 0,
+        "type": "talker",
+        "p1": {
+            "neighbor": 1,
+            "n_queues": 1,
+            "speed": 0.125,
+            "gcl": "all_open.cfg"
+        }
+    },
+    "sw1": {
+        "id": 1,
+        "type": "bridge",
+        "p1": {
+            "neighbor": 2,
+            "n_queues": 1,
+            "speed": 0.125,
+            "gcl": "all_open.cfg"
+        }
+    },
+    "sw2": {
+        "id": 2,
+        "type": "listener"
+    }
+}
