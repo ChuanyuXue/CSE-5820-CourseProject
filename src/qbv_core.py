@@ -83,8 +83,6 @@ class GCL:
         self.period = p
         self.length = len(self.gate_time)
 
-        self._max_time = Time(0, 0) + self.period
-
         ## Close time of gate i at t
         # self._close_time_map = {}
         # for i, t in range(len(self.gate_time)):
@@ -92,30 +90,28 @@ class GCL:
         #         pass
 
     def get_current_status(self, t: Time) -> Tuple[List[bool], Time]:
+        ## Find time in GCL period
+        while t >= self.period:
+            t -= self.period
+
         start = self._match_time(t=t)
         if start + 1 < self.length:
             return self.gate_event[start], self.gate_time[start + 1] - t
         else:
-            return self.gate_event[
-                start], self._max_time - t + self.gate_time[0]
+            return self.gate_event[start], self.period - t
 
     def _match_time(self, t: Time) -> int:
         '''
         Use binary search to quickly find the posistion of GCL
         '''
-
-        ## Find time in GCL period
-        while t > self.period:
-            t -= self.period
-
         left = 0
         right = self.length - 1
-        if t < self.gate_time[left] or t > self.gate_time[right]:
+        if t >= self.gate_time[right]:
             return right
 
         while True:
             median = (left + right) // 2
-            if right - left == 1:
+            if right - left <= 1:
                 return left
             elif self.gate_time[left] <= t < self.gate_time[median]:
                 right = median
@@ -125,10 +121,10 @@ class GCL:
 
 class Egress:
 
-    def __init__(self, id: int, speed: float, gcl: GCL, queue_nums: int,
-                 neighbor: int, clock: Clock, queues: List[Queue],
-                 pcp_to_prio: Dict[int, int], prio_to_tc: Dict[int,
-                                                               int]) -> None:
+    def __init__(self, id: int, dev_id: int, speed: float, gcl: GCL,
+                 queue_nums: int, neighbor: int, clock: Clock,
+                 queues: List[Queue], pcp_to_prio: Dict[int, int],
+                 prio_to_tc: Dict[int, int]) -> None:
         '''
 
         speed: bytes per-nanosecond
@@ -136,6 +132,8 @@ class Egress:
         queues: ordered list of egress queues
 
         '''
+        self.id = id
+        self.dev_id = dev_id
         self.gcl = gcl
         self.speed = speed
         self.queue_nums = queue_nums if queue_nums else 8
@@ -145,6 +143,7 @@ class Egress:
         self.pcp_to_prio = pcp_to_prio
         self.prio_to_tc = prio_to_tc
         self.tc_to_prio = {}
+
         for key, value in self.prio_to_tc.items():
             if value in self.tc_to_prio:
                 print(
@@ -152,9 +151,7 @@ class Egress:
                 )
             self.tc_to_prio[value] = key
 
-        ## TODO: Make this as a HEAP
-        ## (reg_time, frame)
-        self._trans_rejister = []
+        self._transmitting = None
 
     def run(self, t: Time) -> int:
         '''
@@ -163,12 +160,11 @@ class Egress:
 
         '''
 
-        ## if current port is not aviable (transmitting data)
-        if not self.clock.is_aviable:
-            return -1
-
         status, left_time = self.gcl.get_current_status(
             t=self.clock.current_time)
+
+        ## Only keep the first `self.queue_nums` gate status
+        status = status[:self.queue_nums]
 
         ## Check if the left time is still enough for frame [Look ahead]
         for i, v in enumerate(status):
@@ -186,8 +182,17 @@ class Egress:
                 _max_index = i
                 _max_prio = self.tc_to_prio
 
-        if _max_index != None:
+        if _max_index != None and self.clock.is_aviable:
             self.transmit(_max_index)
+
+        ## Transmit frame to next hop in the predicted time
+        if self.clock.is_aviable and self._transmitting:
+            _devices[self.neighbor].recv(self._transmitting)
+            print("[Time %s] Flow %d --- Frame %d is received in Dev %d" %
+                  (str(self.clock.current_time), self._transmitting.id,
+                   self._transmitting.flow_id, self.neighbor))
+
+            self._transmitting = None
 
         ## Increase time
         self.clock.increase(t)
@@ -196,20 +201,13 @@ class Egress:
         global _devices, _flows
         _trans_duration = Time(_flows[self.queues[i][0].flow_id].length /
                                self.speed)
-
-        self._trans_rejister.append((
-            _trans_duration,
-            self.queues[i].get(),
-        ))
+        self._transmitting = self.queues[i].get()
 
         ## Only waitting here for transmition
         self.clock.wait(_trans_duration)
 
-        for t, frame in self._trans_rejister:
-            if t >= self.clock.current_time:
-                _devices[self.neighbor].recv(frame)
-
     def recv(self, frame: Frame):
+
         global _flows
         pcp = _flows[frame.flow_id].pcp
         prio = self.pcp_to_prio[pcp]

@@ -15,7 +15,7 @@ def load_gcl(path: str) -> GCL:
         _time = Time(0, 0)
         for line in f.readlines():
             _, t, s = line.split()
-            _e.append([True if x == 1 else False for x in bin(eval(s))[2:]])
+            _e.append([True if x == '1' else False for x in bin(eval(s))[2:]])
             _t.append(_time)
             _time += Time(int(t))
         _p = _time
@@ -85,6 +85,7 @@ class Environment:
 
                     _eg = Egress(
                         id=i,
+                        dev_id=_dev_id,
                         speed=_prop['speed'],
                         gcl=load_gcl(_prop['gcl']),
                         queue_nums=_prop['n_queues'],
@@ -105,7 +106,7 @@ class Environment:
         counter = {}
 
         for flow in qbv_core._flows:
-            if self.clock.current_time / flow.period == 0:
+            if self.clock.current_time % flow.period == 0:
                 counter.setdefault(flow.id, 0)
                 if counter[flow.id] >= self.LCM / flow.period:
                     counter[flow.id] = 0
@@ -116,8 +117,10 @@ class Environment:
                 counter[flow.id] += 1
                 for i, v in enumerate(qbv_core._devices):
                     if v.id == flow.route[0][0]:
-                        qbv_core[i].recv(ins)
+                        qbv_core._devices[i].recv(ins)
 
+        for dev in qbv_core._devices:
+            dev.run(Time(0))
         for dev in qbv_core._devices:
             dev.run(self.time_granularity)
 

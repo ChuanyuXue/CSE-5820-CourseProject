@@ -8,17 +8,19 @@ TIME_GURANULARITY = 100
 
 # from time import time
 
-# time_list = [0.3, 0.5, 0.9, 1, 10, 100, 100.5, 3000]
+# time_list = [0, 0.3, 0.5, 0.9, 1, 10, 100, 100.5, 3000]
+# time_list = [0, 0.4, 0.5]
+# time_list = [0]
 
 # def _match_time(t):
 #     left = 0
 #     right = len(time_list) - 1
-#     if t < time_list[left] or t > time_list[right]:
+#     if t >= time_list[right]:
 #         return right
 
 #     while True:
 #         median = (left + right) // 2
-#         if right - left == 1:
+#         if right - left <= 1:
 #             return left
 #         elif time_list[left] <= t < time_list[median]:
 #             right = median
@@ -27,6 +29,7 @@ TIME_GURANULARITY = 100
 
 # if __name__ == "__main__":
 #     print(_match_time(0.2))
+#     print(_match_time(0.3))
 #     print(_match_time(0.4))
 #     print(_match_time(0.6))
 #     print(_match_time(0.5))
@@ -85,5 +88,7 @@ TIME_GURANULARITY = 100
 #     print(switch_1.egress_ports[0].clock.current_time)
 
 ## ------------ TEST FOR ENVIRONMENT
-env = Environment(1000)
+env = Environment(Time(100))
 env.make()
+while True:
+    env.run()

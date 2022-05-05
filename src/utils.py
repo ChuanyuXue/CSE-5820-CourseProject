@@ -23,13 +23,25 @@ class Time:
             self.nanosecond += 1e9
         return self
 
-    def __add__(self, t: Time) -> bool:
-        return Time(self.second + t.second,
-                    self.nanosecond + t.nanosecond)._normalize()
+    def __add__(self, t: Time) -> Time:
+        return Time(sec=self.second + t.second,
+                    nano=self.nanosecond + t.nanosecond)._normalize()
 
-    def __sub__(self, t: Time) -> bool:
-        return Time(self.second - t.second,
-                    self.nanosecond - t.nanosecond)._normalize()
+    def __sub__(self, t: Time) -> Time:
+        return Time(sec=self.second - t.second,
+                    nano=self.nanosecond - t.nanosecond)._normalize()
+
+    def __truediv__(self, t: Time) -> int:
+        return (self.second * 1e9 + self.nanosecond) / (t.second * 1e9 +
+                                                        t.nanosecond)
+
+    def __mul__(self, fac: int) -> Time:
+        return Time(sec=self.second * fac,
+                    nano=self.nanosecond * fac)._normalize()
+
+    def __mod__(self, t: Time) -> int:
+        return (self.second * 1e9 + self.nanosecond) % (t.second * 1e9 +
+                                                        t.nanosecond)
 
     def __gt__(self, t: Time) -> bool:
         return self.second * 1e9 + self.nanosecond > t.second * 1e9 + t.nanosecond
@@ -107,7 +119,7 @@ class Clock:
 
     def increase(self, t: Time) -> None:
         self.current_time += t
-        if self.current_time > self.aviable_t:
+        if self.current_time >= self.aviable_t:
             self.is_aviable = True
 
     def wait(self, t: Time) -> None:
