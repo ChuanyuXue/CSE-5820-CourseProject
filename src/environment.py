@@ -5,6 +5,7 @@ from src import qbv_core
 import src.var as var
 from src.qbv_core import GCL, Device, Egress, Flow, Frame, Link, Queue
 from src.utils import Clock, Time
+from random import randint
 
 ENV_PATH = "configs/env.json"
 NETWORK_PATH = "configs/network.json"
@@ -74,6 +75,7 @@ class Environment:
 
             _flow = Flow(id=properties["id"],
                          p=Time(properties["period"]),
+                         o=Time(properties["offset"]),
                          l=properties['length'],
                          pcp=properties['pcp'],
                          route=_route)
@@ -126,9 +128,12 @@ class Environment:
         self._map_state_to_gcl()
 
     def run(self) -> None:
-
+        ## Add frame to network
         for flow in var._flows:
-            if self.clock.current_time % flow.period == 0:
+            if (self.clock.current_time + flow.offset) % flow.period == 0:
+                # Add jitter from [-500ns, 500ns]
+                # if (self.clock.current_time +
+                #         Time(100) * randint(-5, 5)) % flow.period == 0:
                 self.counter.setdefault(flow.id, 0)
                 if self.counter[flow.id] >= self.LCM / flow.period:
                     self.counter[flow.id] = 0

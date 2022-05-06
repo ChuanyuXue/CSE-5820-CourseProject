@@ -37,7 +37,7 @@ class Frame:
 
 class Flow:
 
-    def __init__(self, id: int, p: Time, l: int, pcp: int,
+    def __init__(self, id: int, p: Time, o: Time, l: int, pcp: int,
                  route: Tuple[Link]) -> None:
         '''
         length: length in byte
@@ -46,6 +46,7 @@ class Flow:
         self.id = id
         self.pcp = pcp
         self.period = p
+        self.offset = o
         self.length = l
 
         # self.frames = frames
