@@ -66,8 +66,8 @@ class Queue:
         return len(self._data)
 
     def put(self, x: Frame) -> None:
-        if len(self._data) > self.length:
-            print("[!] Queue overflow")
+        # if len(self._data) > self.length:
+        #     print("[!] Queue overflow")
         self._data.append(x)
 
     def get(self, ) -> Frame:

@@ -46,8 +46,14 @@ class Time:
     def __gt__(self, t: Time) -> bool:
         return self.second * 1e9 + self.nanosecond > t.second * 1e9 + t.nanosecond
 
+    def __lt__(self, t: Time) -> bool:
+        return self.second * 1e9 + self.nanosecond < t.second * 1e9 + t.nanosecond
+
     def __ge__(self, t: Time) -> bool:
         return self.second * 1e9 + self.nanosecond >= t.second * 1e9 + t.nanosecond
+
+    def __le__(self, t: Time) -> bool:
+        return self.second * 1e9 + self.nanosecond <= t.second * 1e9 + t.nanosecond
 
     def __eq__(self, t: Union[Time, int]) -> bool:
         if isinstance(t, int):

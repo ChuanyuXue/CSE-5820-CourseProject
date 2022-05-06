@@ -15,7 +15,7 @@ m = Q_learning(alpha=0.9,
                init_state=env.state)
 
 count = 0
-while True:
+while count <= 10000:
     ### Step.1 Get the action from agent:
     acts = []
     for flow in var._flows:
@@ -43,5 +43,11 @@ while True:
                  side=1,
                  action=acts[i][1],
                  reward=reward)
-    print("[Iter %6d] Current reward %f" % (count, reward))
-    count += 1
+    # print("[Iter %6d] Current reward %f" % (count, reward))
+
+    ## This line is for drawing output
+    print(reward,
+          len(var._devices[0].egress_ports[0].queues[0]),
+          state[0][0],
+          state[0][1],
+          sep=',')

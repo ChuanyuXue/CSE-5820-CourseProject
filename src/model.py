@@ -1,6 +1,8 @@
 from typing import Tuple
 from random import random, randint
 
+from src.utils import Time
+
 
 def argmax(x):
     _max_v = -1e9
@@ -41,10 +43,20 @@ class Q_learning:
                 result.append(randint(0, 2))
 
         ### Avoid out of range:
-        if result[0] == -1 and state[frame_id][0] - self.grua < 0:
-            result[0] = 0
-        if result[0] == 1 and state[frame_id][0] + self.grua >= self.lcm:
-            result[0] = 0
+        ### Constraint on left left
+        if result[0] == 0 and state[frame_id][0] - self.grua < Time(0):
+            result[0] = 1
+        ### Constraint on left right
+        if result[0] == 2 and state[frame_id][0] + self.grua >= state[
+                frame_id][1]:
+            result[0] = 1
+        ### Constraint on right left
+        if result[1] == 0 and state[frame_id][1] - self.grua <= state[
+                frame_id][1]:
+            result[1] = 1
+        ### Constraint on right right
+        if result[1] == 2 and state[frame_id][1] + self.grua >= self.lcm:
+            result[1] = 1
 
         return [x - 1 for x in result]
 
