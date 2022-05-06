@@ -11,6 +11,16 @@
     },
     "sw1": {
         "id": 1,
+        "type": "bridge",
+        "p1": {
+            "neighbor": 2,
+            "n_queues": 1,
+            "speed": 0.125,
+            "gcl": "configs/all_open.cfg"
+        }
+    },
+    "sw2": {
+        "id": 2,
         "type": "listener"
     }
 }

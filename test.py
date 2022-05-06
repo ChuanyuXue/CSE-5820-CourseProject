@@ -94,7 +94,17 @@ import src.qbv_core as qbv
 #     env.run()
 
 ## ------------ TEST FOR TWO FRAMEs ------------------------------
-env = Environment(Time(100))
-env.make()
-for i in range(10000):
-    env.run()
+# env = Environment(Time(100))
+# env.make()
+# for i in range(10000):
+#     env.run()
+
+## ------------ TEST FOR THE [FOWARD] AND [ACTION] FUNCTION -------
+# env = Environment(Time(100))
+# env.make()
+# print(env.state)
+# while True:
+#     for i in range(10000):
+#         env.run()
+
+#     env.action(0, 1, Time(100))

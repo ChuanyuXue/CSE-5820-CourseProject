@@ -1,7 +1,10 @@
 import math
-from src import qbv_core
-from src.qbv_core import *
 import json
+from operator import index
+from src import qbv_core
+import src.var as var
+from src.qbv_core import GCL, Device, Egress, Flow, Frame, Link, Queue
+from src.utils import Clock, Time
 
 ENV_PATH = "configs/env.json"
 NETWORK_PATH = "configs/network.json"
@@ -35,6 +38,11 @@ class Environment:
 
         self.clock = Clock(Time(0, 0))
         self.counter = {}
+
+        self.iter = 0
+
+        ### {flow_id, [LEFT, RIGHT]}
+        self.state = None
 
     def make(self, ) -> None:
         ## Create flows
@@ -70,8 +78,8 @@ class Environment:
                          pcp=properties['pcp'],
                          route=_route)
 
-            qbv_core._flows.append(_flow)
-        self.LCM = Time(math.lcm(*[int(x.period) for x in qbv_core._flows]))
+            var._flows.append(_flow)
+        self.LCM = Time(math.lcm(*[int(x.period) for x in var._flows]))
 
         with open(NETWORK_PATH) as f:
             network_conf = json.load(f)
@@ -101,27 +109,109 @@ class Environment:
 
                     _dev_eg.append(_eg)
             _sw = Device(_dev_id, _dev_type, _dev_eg)
-            qbv_core._devices.append(_sw)
+            var._devices.append(_sw)
 
-    def run(self):
+        ### Initialize -- Randomly assign each traffic to one spare window
+        self.state = {}
 
-        for flow in qbv_core._flows:
+        ### Clear GCL
+        # for i in len(var._devices):
+        #     for k in len(var._devices[i].egress_ports):
+        #         var._devices[i].egress_ports[k].gcl = GCL(t=[],
+        #                                                   e=[],
+        #                                                   p=self.LCM)
+
+        for flow in var._flows:
+            self.state.setdefault(flow.id, [Time(0), Time(100)])
+        self._map_state_to_gcl()
+
+    def run(self) -> None:
+
+        for flow in var._flows:
             if self.clock.current_time % flow.period == 0:
                 self.counter.setdefault(flow.id, 0)
                 if self.counter[flow.id] >= self.LCM / flow.period:
                     self.counter[flow.id] = 0
 
+                # ins = Frame(id=self.counter[flow.id],
+                #             flow_id=flow.id,
+                #             o=flow.period * self.counter[flow.id])
+
                 ins = Frame(id=self.counter[flow.id],
                             flow_id=flow.id,
-                            o=flow.period * self.counter[flow.id])
-                self.counter[flow.id] += 1
-                for i, v in enumerate(qbv_core._devices):
-                    if v.id == flow.route[0][0]:
-                        qbv_core._devices[i].recv(ins)
+                            o=self.clock.current_time)
 
-        for dev in qbv_core._devices:
+                self.counter[flow.id] += 1
+                for i, v in enumerate(var._devices):
+                    if v.id == flow.route[0][0]:
+                        var._devices[i].recv(ins)
+
+        ## Traverse every divice twice to make sure the order of running doesn't effect the result.
+        for dev in var._devices:
             dev.run(Time(0))
-        for dev in qbv_core._devices:
+        for dev in var._devices:
             dev.run(self.time_granularity)
 
         self.clock.increase(self.time_granularity)
+        self.iter += 1
+
+    def reward(self, ) -> float:
+        reward = var._reward
+        var._reward = 0
+        return reward
+
+    def action(self, frame_id: int, side: int, direc: Time) -> None:
+        self.state[frame_id][side] += direc
+        self._map_state_to_gcl()
+
+    def _map_state_to_gcl(self, ) -> None:
+        ### Check if there is overlap in GLC:
+        ### https://www.geeksforgeeks.org/check-if-any-two-intervals-overlap-among-a-given-set-of-intervals/
+
+        values = sorted(list(self.state.values()),
+                        key=lambda x: x[0],
+                        reverse=False)
+        for i, v in enumerate(values[:-1]):
+            if v[1] > values[i + 1][0]:
+                print("[!] GCL Overlap: Wrong statues setting.")
+
+        _t = []
+        _e = []
+        _p = self.LCM
+
+        for flow_id, state in self.state.items():
+            start, end = state[0], state[1]
+            status = [
+                True if i == var._flows[flow_id].pcp else None
+                for i in range(8)
+            ]
+            _t.append(start)
+            _e.append(status)
+            _t.append(end)
+            _e.append([
+                False if i == var._flows[flow_id].pcp else None
+                for i in range(8)
+            ])
+
+        ## Insertaion sort
+        for i in range(len(_t)):
+            current_t = _t[i]
+            current_e = _e[i]
+            k = i - 1
+            while k >= 0 and _t[k] > current_t:
+                _t[k + 1] = _t[k]
+                _e[k + 1] = _e[k]
+                k -= 1
+            _t[k + 1] = current_t
+            _e[k + 1] = current_e
+
+        ## Complete the GCL
+        for k, v in enumerate(_e[0]):
+            if v == None:
+                _e[0][k] = False
+        for i in range(1, len(_t)):
+            for k, v in enumerate(_e[i]):
+                if v == None:
+                    _e[i][k] = _e[i - 1][k]
+
+        var._devices[0].egress_ports[0].gcl = GCL(t=_t, e=_e, p=_p)

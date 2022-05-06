@@ -7,20 +7,7 @@
         "offset": 0,
         "route": [
             0,
-            1,
-            2
-        ]
-    },
-    "flow1": {
-        "id": 1,
-        "pcp": 0,
-        "length": 100,
-        "period": 40000,
-        "offset": 0,
-        "route": [
-            0,
-            1,
-            2
+            1
         ]
     }
 }

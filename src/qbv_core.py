@@ -1,10 +1,8 @@
 from distutils.log import error
 from time import time
-from typing import *
+from typing import Dict, List, Tuple
+import src.var as var
 from src.utils import Time, Clock
-
-_devices = []
-_flows = []
 
 
 class Link:
@@ -51,6 +49,7 @@ class Flow:
         self.length = l
 
         # self.frames = frames
+        # ([a,b],[b,c],[c,d]...)
         self.route = route
 
 
@@ -78,6 +77,17 @@ class Queue:
 class GCL:
 
     def __init__(self, t: List[Time], p: Time, e: List[List[bool]]) -> None:
+        '''
+
+        gate_time = [Time0, Time1, Time2, ... , TimeN]
+
+        e = [
+                [True, False, ...., ]
+        ]
+        
+        p = period
+
+        '''
         self.gate_time = t
         self.gate_event = e
         self.period = p
@@ -155,10 +165,8 @@ class Egress:
     def trans(self, ):
         ## Transmit frame to next hop in the predicted time
         if self.clock.is_aviable and self._transmitting:
-            _devices[self.neighbor].recv(self._transmitting)
-            print("[Time %s] Flow %d --- Frame %d is received in Dev %d" %
-                  (str(self.clock.current_time), self._transmitting.flow_id,
-                   self._transmitting.id, self.neighbor))
+            var._devices[self.neighbor].recv(self._transmitting)
+
             self._transmitting = None
 
     def run(self, t: Time) -> int:
@@ -179,7 +187,7 @@ class Egress:
             if v and not len(self.queues[i]):
                 status[i] = False
             if v and len(self.queues[i]) and left_time < Time(
-                    _flows[self.queues[i][0].flow_id].length / self.speed):
+                    var._flows[self.queues[i][0].flow_id].length / self.speed):
                 status[i] = False
 
         ## Compete by priority
@@ -193,7 +201,8 @@ class Egress:
         ## Pop frame from queue and sent it from port
         if _max_index != None and self.clock.is_aviable:
             _trans_duration = Time(
-                _flows[self.queues[_max_index][0].flow_id].length / self.speed)
+                var._flows[self.queues[_max_index][0].flow_id].length /
+                self.speed)
             self._transmitting = self.queues[_max_index].get()
 
             ## Only waitting here for transmition
@@ -203,8 +212,7 @@ class Egress:
         self.clock.increase(t)
 
     def recv(self, frame: Frame):
-        global _flows
-        pcp = _flows[frame.flow_id].pcp
+        pcp = var._flows[frame.flow_id].pcp
         prio = self.pcp_to_prio[pcp]
         tc = self.prio_to_tc[prio]
         self.queues[tc].put(frame)
@@ -225,12 +233,13 @@ class Device:
     def __init__(self, id: int, dev_type: int,
                  egress_ports: List[Egress]) -> None:
         self.id = id
+        ## 'talker' / 'bridge' / 'listener'
         self.dev_type = dev_type
         self.egress_ports = egress_ports
+        self.clock = Clock(Time(0))
 
     def _switching_fabric(self, frame: Frame) -> int:
-        global _flows
-        for x in _flows[frame.flow_id].route:
+        for x in var._flows[frame.flow_id].route:
             a, b = x[0], x[1]
             if self.id == a:
                 for eg in self.egress_ports:
@@ -242,6 +251,14 @@ class Device:
             i.trans()
         for i in self.egress_ports:
             i.run(t)
+        self.clock.increase(t)
 
     def recv(self, frame: Frame) -> None:
-        self._switching_fabric(frame)
+        # print("[Time %s] Flow %d --- Frame %d is received in Dev %d" %
+        #       (str(self.clock.current_time), frame.flow_id, frame.id, self.id))
+
+        if self.dev_type == 'listener':
+            var._reward += 1e6 / int(self.clock.current_time - frame.release_t)
+            # var._reward += 1
+        else:
+            self._switching_fabric(frame)
