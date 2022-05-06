@@ -124,7 +124,10 @@ class Environment:
         #                                                   p=self.LCM)
 
         for flow in var._flows:
-            self.state.setdefault(flow.id, [Time(0), Time(100)])
+            start = self.time_granularity * randint(
+                0, int(self.LCM / self.time_granularity))
+
+            self.state.setdefault(flow.id, [start, start + Time(100)])
         self._map_state_to_gcl()
 
     def run(self) -> None:
@@ -170,15 +173,15 @@ class Environment:
         self._map_state_to_gcl()
 
     def _map_state_to_gcl(self, ) -> None:
-        ### Check if there is overlap in GLC:
+        ### Check if there is  in GLC:
         ### https://www.geeksforgeeks.org/check-if-any-two-intervals-overlap-among-a-given-set-of-intervals/
 
-        values = sorted(list(self.state.values()),
-                        key=lambda x: x[0],
-                        reverse=False)
-        for i, v in enumerate(values[:-1]):
-            if v[1] > values[i + 1][0]:
-                print("[!] GCL Overlap: Wrong statues setting.")
+        # values = sorted(list(self.state.values()),
+        #                 key=lambda x: x[0],
+        #                 reverse=False)
+        # for i, v in enumerate(values[:-1]):
+        #     if v[1] > values[i + 1][0]:
+        #         print("[!] GCL Overlap: Wrong statues setting.")
 
         _t = []
         _e = []
@@ -197,6 +200,10 @@ class Environment:
                 False if i == var._flows[flow_id].pcp else None
                 for i in range(8)
             ])
+
+        if _t[0] != Time(0):
+            _t = [Time(0)] + _t
+            _e = [[False] * 8] + _e
 
         ## Insertaion sort
         for i in range(len(_t)):

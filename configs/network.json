@@ -4,7 +4,7 @@
         "type": "talker",
         "p1": {
             "neighbor": 1,
-            "n_queues": 1,
+            "n_queues": 2,
             "speed": 0.125,
             "gcl": "configs/all_open.cfg"
         }

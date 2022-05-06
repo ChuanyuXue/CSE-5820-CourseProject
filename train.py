@@ -9,7 +9,7 @@ env.make()
 m = Q_learning(alpha=0.9,
                delta=0.9,
                epsilon=0.8,
-               nflow=1,
+               nflow=len(var._flows),
                grua=Time(100),
                lcm=env.LCM,
                init_state=env.state)
@@ -48,6 +48,11 @@ while count <= 10000:
     ## This line is for drawing output
     print(reward,
           len(var._devices[0].egress_ports[0].queues[0]),
+          len(var._devices[0].egress_ports[0].queues[1]),
           state[0][0],
           state[0][1],
+          state[1][0],
+          state[1][1],
+          state[2][0],
+          state[2][1],
           sep=',')
