@@ -197,7 +197,7 @@ class Egress:
         for i, v in enumerate(status):
             if v and self.tc_to_prio[i] > _max_prio:
                 _max_index = i
-                _max_prio = self.tc_to_prio
+                _max_prio = self.tc_to_prio[i]
 
         ## Pop frame from queue and sent it from port
         if _max_index != None and self.clock.is_aviable:

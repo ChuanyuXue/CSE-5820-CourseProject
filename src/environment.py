@@ -133,10 +133,10 @@ class Environment:
     def run(self) -> None:
         ## Add frame to network
         for flow in var._flows:
-            if (self.clock.current_time + flow.offset) % flow.period == 0:
-                # Add jitter from [-500ns, 500ns]
-                # if (self.clock.current_time +
-                #         Time(100) * randint(-5, 5)) % flow.period == 0:
+            # if (self.clock.current_time + flow.offset) % flow.period == 0:
+            # Add jitter from [-500ns, 500ns]
+            if (self.clock.current_time +
+                    Time(100) * randint(-5, 5)) % flow.period == 0:
                 self.counter.setdefault(flow.id, 0)
                 if self.counter[flow.id] >= self.LCM / flow.period:
                     self.counter[flow.id] = 0
