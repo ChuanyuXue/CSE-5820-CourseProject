@@ -91,8 +91,7 @@ class GCL:
 
     def get_current_status(self, t: Time) -> Tuple[List[bool], Time]:
         ## Find time in GCL period
-        while t >= self.period:
-            t -= self.period
+        t = t % self.period
 
         start = self._match_time(t=t)
         if start + 1 < self.length:
@@ -153,6 +152,15 @@ class Egress:
 
         self._transmitting = None
 
+    def trans(self, ):
+        ## Transmit frame to next hop in the predicted time
+        if self.clock.is_aviable and self._transmitting:
+            _devices[self.neighbor].recv(self._transmitting)
+            print("[Time %s] Flow %d --- Frame %d is received in Dev %d" %
+                  (str(self.clock.current_time), self._transmitting.flow_id,
+                   self._transmitting.id, self.neighbor))
+            self._transmitting = None
+
     def run(self, t: Time) -> int:
         '''
         
@@ -182,32 +190,19 @@ class Egress:
                 _max_index = i
                 _max_prio = self.tc_to_prio
 
+        ## Pop frame from queue and sent it from port
         if _max_index != None and self.clock.is_aviable:
-            self.transmit(_max_index)
+            _trans_duration = Time(
+                _flows[self.queues[_max_index][0].flow_id].length / self.speed)
+            self._transmitting = self.queues[_max_index].get()
 
-        ## Transmit frame to next hop in the predicted time
-        if self.clock.is_aviable and self._transmitting:
-            _devices[self.neighbor].recv(self._transmitting)
-            print("[Time %s] Flow %d --- Frame %d is received in Dev %d" %
-                  (str(self.clock.current_time), self._transmitting.id,
-                   self._transmitting.flow_id, self.neighbor))
-
-            self._transmitting = None
+            ## Only waitting here for transmition
+            self.clock.wait(_trans_duration)
 
         ## Increase time
         self.clock.increase(t)
 
-    def transmit(self, i: int):
-        global _devices, _flows
-        _trans_duration = Time(_flows[self.queues[i][0].flow_id].length /
-                               self.speed)
-        self._transmitting = self.queues[i].get()
-
-        ## Only waitting here for transmition
-        self.clock.wait(_trans_duration)
-
     def recv(self, frame: Frame):
-
         global _flows
         pcp = _flows[frame.flow_id].pcp
         prio = self.pcp_to_prio[pcp]
@@ -243,6 +238,8 @@ class Device:
                         eg.recv(frame)
 
     def run(self, t: Time) -> None:
+        for i in self.egress_ports:
+            i.trans()
         for i in self.egress_ports:
             i.run(t)
 

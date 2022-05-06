@@ -2,7 +2,7 @@ from src.qbv_core import *
 from src.environment import *
 import src.qbv_core as qbv
 
-TIME_GURANULARITY = 100
+# TIME_GURANULARITY = 100
 
 ## ---------------- Test for gcl search algorithm -------------
 
@@ -87,8 +87,14 @@ TIME_GURANULARITY = 100
 #     switch_1.run(Time(TIME_GURANULARITY))
 #     print(switch_1.egress_ports[0].clock.current_time)
 
-## ------------ TEST FOR ENVIRONMENT
+## ------------ TEST FOR ENVIRONMENT and SINGLE FRAME ---------------
+# env = Environment(Time(100))
+# env.make()
+# while True:
+#     env.run()
+
+## ------------ TEST FOR TWO FRAMEs ------------------------------
 env = Environment(Time(100))
 env.make()
-while True:
+for i in range(10000):
     env.run()

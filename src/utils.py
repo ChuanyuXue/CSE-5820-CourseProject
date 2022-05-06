@@ -39,9 +39,9 @@ class Time:
         return Time(sec=self.second * fac,
                     nano=self.nanosecond * fac)._normalize()
 
-    def __mod__(self, t: Time) -> int:
-        return (self.second * 1e9 + self.nanosecond) % (t.second * 1e9 +
-                                                        t.nanosecond)
+    def __mod__(self, t: Time) -> Time:
+        return Time(nano=(self.second * 1e9 + self.nanosecond) %
+                    (t.second * 1e9 + t.nanosecond))._normalize()
 
     def __gt__(self, t: Time) -> bool:
         return self.second * 1e9 + self.nanosecond > t.second * 1e9 + t.nanosecond
@@ -49,8 +49,11 @@ class Time:
     def __ge__(self, t: Time) -> bool:
         return self.second * 1e9 + self.nanosecond >= t.second * 1e9 + t.nanosecond
 
-    def __eq__(self, t: Time) -> bool:
-        return self.second == t.second and self.nanosecond == t.nanosecond
+    def __eq__(self, t: Union[Time, int]) -> bool:
+        if isinstance(t, int):
+            return self.second * 1e9 + self.nanosecond == t
+        elif isinstance(t, Time):
+            return self.second == t.second and self.nanosecond == t.nanosecond
 
     def __repr__(self, ) -> str:
         return "%d.%09d" % (self.second, self.nanosecond)

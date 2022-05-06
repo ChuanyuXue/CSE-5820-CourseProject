@@ -34,6 +34,7 @@ class Environment:
         self.LCM = None
 
         self.clock = Clock(Time(0, 0))
+        self.counter = {}
 
     def make(self, ) -> None:
         ## Create flows
@@ -103,18 +104,17 @@ class Environment:
             qbv_core._devices.append(_sw)
 
     def run(self):
-        counter = {}
 
         for flow in qbv_core._flows:
             if self.clock.current_time % flow.period == 0:
-                counter.setdefault(flow.id, 0)
-                if counter[flow.id] >= self.LCM / flow.period:
-                    counter[flow.id] = 0
+                self.counter.setdefault(flow.id, 0)
+                if self.counter[flow.id] >= self.LCM / flow.period:
+                    self.counter[flow.id] = 0
 
-                ins = Frame(id=counter[flow.id],
+                ins = Frame(id=self.counter[flow.id],
                             flow_id=flow.id,
-                            o=flow.period * counter[flow.id])
-                counter[flow.id] += 1
+                            o=flow.period * self.counter[flow.id])
+                self.counter[flow.id] += 1
                 for i, v in enumerate(qbv_core._devices):
                     if v.id == flow.route[0][0]:
                         qbv_core._devices[i].recv(ins)
