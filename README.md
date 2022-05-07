@@ -11,4 +11,6 @@ Then run `train.py` in the root directory:
 
 ## Dependency
 
+All codes are written in native Python without any packages.
+
     python >= 3.9.0
